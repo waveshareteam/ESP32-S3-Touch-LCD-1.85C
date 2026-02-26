@@ -1,0 +1,15 @@
+menu "Audio Media HAL"
+
+choice AUDIO_BOARD
+    prompt "Audio hardware board"
+    default ESP32_S3_AUDIO_Board
+    help
+        Select an audio board to use
+
+
+config ESP32_S3_AUDIO_Board
+    bool "ESP32_S3_AUDIO"
+    depends on IDF_TARGET_ESP32S3
+endchoice
+
+endmenu

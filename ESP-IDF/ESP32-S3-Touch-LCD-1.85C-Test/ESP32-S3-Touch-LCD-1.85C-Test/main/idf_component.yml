@@ -1,0 +1,5 @@
+dependencies:
+  idf: '>=4.4'
+  lvgl/lvgl: ~8.3.0
+  espressif/esp_audio_simple_player: ^0.9.4~2
+  espressif/esp-sr: ^2.1.4

@@ -18,6 +18,9 @@ extern lv_disp_drv_t disp_drv;                                                  
 extern lv_disp_t *disp;    
 
 void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map);
+bool example_lvgl_flush_ready_callback(esp_lcd_panel_io_handle_t panel_io,
+                                       esp_lcd_panel_io_event_data_t *edata,
+                                       void *user_ctx);
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
 void example_lvgl_port_update_callback(lv_disp_drv_t *drv);
 void example_increase_lvgl_tick(void *arg);

@@ -59,6 +59,7 @@
 #define Backlight_MAX   100      
 
 extern esp_lcd_panel_handle_t panel_handle;
+extern esp_lcd_panel_io_handle_t panel_io_handle;
 extern uint8_t LCD_Backlight;
 
 void ST77916_Init();

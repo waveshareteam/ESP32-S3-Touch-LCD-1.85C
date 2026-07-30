@@ -1,4 +1,5 @@
 #include "LVGL_Driver.h"
+#include "esp_heap_caps.h"
 
 static const char *TAG_LVGL = "LVGL";
 
@@ -23,8 +24,24 @@ void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t
     int offsety1 = area->y1;
     int offsety2 = area->y2;
     // copy a buffer's content to a specific area of the display
-    esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 +1, offsety2 + 1, color_map);
-    lv_disp_flush_ready(drv);
+    esp_err_t ret = esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 +1, offsety2 + 1, color_map);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG_LVGL, "Queue LCD DMA transfer failed: %s", esp_err_to_name(ret));
+        // Prevent LVGL from deadlocking if a transfer cannot be queued.
+        lv_disp_flush_ready(drv);
+    }
+}
+
+bool example_lvgl_flush_ready_callback(esp_lcd_panel_io_handle_t panel_io,
+                                       esp_lcd_panel_io_event_data_t *edata,
+                                       void *user_ctx)
+{
+    (void)panel_io;
+    (void)edata;
+    // The callback is invoked only after the final DMA chunk completes, so
+    // LVGL may safely reuse the buffer from this point onward.
+    lv_disp_flush_ready((lv_disp_drv_t *)user_ctx);
+    return false;
 }
 
 /*Read the touchpad*/
@@ -87,9 +104,12 @@ void LVGL_Init(void)
     ESP_LOGI(TAG_LVGL, "Initialize LVGL library");
     lv_init();
     
-    lv_color_t *buf1 = heap_caps_malloc(LVGL_BUF_LEN * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    // SPI DMA cannot transmit directly from this PSRAM configuration.  Put
+    // the partial render buffers in internal DMA-capable RAM to avoid the
+    // driver's private TX bounce-buffer allocation on every refresh.
+    lv_color_t *buf1 = heap_caps_malloc(LVGL_BUF_LEN * sizeof(lv_color_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     assert(buf1);
-    lv_color_t *buf2 = heap_caps_malloc(LVGL_BUF_LEN * sizeof(lv_color_t) , MALLOC_CAP_SPIRAM);    
+    lv_color_t *buf2 = heap_caps_malloc(LVGL_BUF_LEN * sizeof(lv_color_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     assert(buf2);
     lv_disp_draw_buf_init(&disp_buf, buf1, buf2, LVGL_BUF_LEN);                              // initialize LVGL draw buffers
 
@@ -104,6 +124,11 @@ void LVGL_Init(void)
     disp_drv.user_data = panel_handle;                
     ESP_LOGI(TAG_LVGL,"Register display indev to LVGL");                                                  // Custom display driver user data
     disp = lv_disp_drv_register(&disp_drv);     
+
+    const esp_lcd_panel_io_callbacks_t cbs = {
+        .on_color_trans_done = example_lvgl_flush_ready_callback,
+    };
+    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(panel_io_handle, &cbs, &disp_drv));
     
     lv_indev_drv_init ( &indev_drv );
     indev_drv.type = LV_INDEV_TYPE_POINTER;

@@ -7,6 +7,7 @@
 static const char *TAG_LCD = "ST77916";
 
 esp_lcd_panel_handle_t panel_handle = NULL;
+esp_lcd_panel_io_handle_t panel_io_handle = NULL;
 
 
 static const st77916_lcd_init_cmd_t vendor_specific_init_new[] = {
@@ -208,20 +209,21 @@ void LCD_Init() {
   Touch_Init();
 }
 
-static void test_draw_bitmap(esp_lcd_panel_handle_t panel_handle)
+static void lcd_clear_screen(esp_lcd_panel_handle_t panel_handle)
 {
-  uint16_t row_line = ((EXAMPLE_LCD_WIDTH / EXAMPLE_LCD_COLOR_BITS) << 1) >> 1;
-  uint8_t byte_per_pixel = EXAMPLE_LCD_COLOR_BITS / 8;
-  uint8_t *color = (uint8_t *)heap_caps_calloc(1, row_line * EXAMPLE_LCD_HEIGHT * byte_per_pixel, MALLOC_CAP_DMA);
+  const uint16_t lines_per_transfer = 16;
+  uint16_t *color = (uint16_t *)heap_caps_calloc(EXAMPLE_LCD_WIDTH * lines_per_transfer, sizeof(uint16_t), MALLOC_CAP_DMA);
+  if (color == NULL) {
+    ESP_LOGW(TAG_LCD, "Failed to allocate LCD clear buffer");
+    return;
+  }
 
-
-  for (int j = 0; j < EXAMPLE_LCD_COLOR_BITS; j++) {
-      for (int i = 0; i < row_line * EXAMPLE_LCD_HEIGHT; i++) {
-          for (int k = 0; k < byte_per_pixel; k++) {
-              color[i * byte_per_pixel + k] = (SPI_SWAP_DATA_TX(BIT(j), EXAMPLE_LCD_COLOR_BITS) >> (k * 8)) & 0xff;
-          }
+  for (int y = 0; y < EXAMPLE_LCD_HEIGHT; y += lines_per_transfer) {
+      int y_end = y + lines_per_transfer;
+      if (y_end > EXAMPLE_LCD_HEIGHT) {
+          y_end = EXAMPLE_LCD_HEIGHT;
       }
-      esp_lcd_panel_draw_bitmap(panel_handle, 0, j * row_line, EXAMPLE_LCD_HEIGHT, (j + 1) * row_line, color);
+      esp_lcd_panel_draw_bitmap(panel_handle, 0, y, EXAMPLE_LCD_WIDTH, y_end, color);
   }
   free(color);
 }
@@ -292,14 +294,18 @@ int QSPI_Init(void){
     printf("Register 0x04 data: %02x %02x %02x %02x\n", register_data[0], register_data[1], register_data[2], register_data[3]);
   } else {
     printf("Failed to read register 0x04, error code: %d\n", ret);
-  } 
-  // panel_io_spi_del(io_handle);
+  }
+  // The ID-read IO is only temporary.  Keeping it consumes another SPI
+  // transaction pool and DMA-capable memory for the life of the application.
+  ESP_ERROR_CHECK(esp_lcd_panel_io_del(io_handle));
+  io_handle = NULL;
   io_config.pclk_hz = ESP_PANEL_LCD_SPI_CLK_HZ;
   if(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)ESP_PANEL_HOST_SPI_ID_DEFAULT, &io_config, &io_handle) != ESP_OK){
     printf("Failed to set LCD communication parameters -- SPI\r\n");
     return 0;
   }
   printf("LCD communication parameters are set successfully -- SPI\r\n");
+  panel_io_handle = io_handle;
   
   // Check register values and configure accordingly
   if (register_data[0] == 0x00 && register_data[1] == 0x7F && register_data[2] == 0x7F && register_data[3] == 0x7F) {
@@ -332,7 +338,7 @@ int QSPI_Init(void){
   // esp_lcd_panel_invert_color(panel_handle,false);
 
   esp_lcd_panel_disp_on_off(panel_handle, true);
-  test_draw_bitmap(panel_handle);
+  lcd_clear_screen(panel_handle);
   return 1;
 }
 

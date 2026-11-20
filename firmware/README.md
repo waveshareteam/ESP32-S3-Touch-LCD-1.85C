@@ -5,7 +5,6 @@
 | File | Version / compatibility | Purpose | Flash offset |
 | --- | --- | --- | --- |
 | [ESP32-S3-Touch-LCD-1.85C_FactoryOnly_20261022.bin](ESP32-S3-Touch-LCD-1.85C_FactoryOnly_20261022.bin) | 2026-10-22; **V2 hardware only** | Factory test firmware; not compatible with V1 hardware | `0x0` |
-| [ESP32-S3-Touch-LCD-1.85C.bin](ESP32-S3-Touch-LCD-1.85C.bin) | Legacy; hardware compatibility and version date not documented | Historical factory firmware retained unchanged | `0x0` |
 | [dlna.bin](../Arduino/examples/DLNA/dlna.bin) | Legacy; hardware compatibility and version date not documented | Historical DLNA example image | `0x0` |
 
 ## Flash the latest factory firmware
